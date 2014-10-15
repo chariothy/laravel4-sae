@@ -1,0 +1,18 @@
+{
+    "name": "Chariothy/laravel4-sae",
+    "description": "This package lets you run Laravel4 on SAE painlessly.",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "chariothy",
+            "email": "chariothy@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "autoload": {
+        "psr-0": {"Chariothy": "src/"}
+    }
+}
