@@ -24,5 +24,5 @@
         "php artisan clear-compiled",
         "php artisan optimize"
       ]
-	},
+    }
 }
