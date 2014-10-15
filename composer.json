@@ -1,5 +1,5 @@
 {
-    "name": "Chariothy/laravel4-sae",
+    "name": "chariothy/laravel4-sae",
     "description": "This package lets you run Laravel4 on SAE painlessly.",
     "license": "MIT",
     "type": "library",
