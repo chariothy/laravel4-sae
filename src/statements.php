@@ -116,7 +116,6 @@ $env = $app->detectEnvironment(function(){
 */
 NEW_ENV
     , 'bind' => <<<'BIND'
-
 /*
 |--------------------------------------------------------------------------
 | SaePatch - wrap storage path with SAE wrapper
@@ -132,13 +131,12 @@ if(class_exists('SaeObject')) {
 */
 BIND
     , 'index' => <<<'INDEX'
-
+<?php
 /*
 |--------------------------------------------------------------------------
 | SaePatch - adapt for SAE rewrite rule
 |--------------------------------------------------------------------------
 */
-<?php
 ini_set('display_errors',0);
 require __DIR__.'/public/index.php';
 /*
