@@ -20,13 +20,9 @@ class SaePatch extends Command {
 	 */
 	protected $description = 'Non-intrusively patches Laravel4 for SAE.';
 
-    const CONFIG_FOLDER = 'app/config/sae';
+    const VERSION = '1.0.0';
     const PHP_EXT = '.php';
-    const BOOTSTRAP_START = 'bootstrap/start.php';
-    const START_GLOBAL = 'app/start/global.php';
-
-    const OVERWRITE = 0;
-    const IGNORE = 1;
+    private $patches = array();
 
 	/**
 	 * Create a new command instance.
@@ -35,7 +31,33 @@ class SaePatch extends Command {
 	 */
 	public function __construct()
 	{
-		parent::__construct();
+        $configFolder = 'app/config/sae';
+        $start = 'bootstrap/start.php';
+        $global = 'app/start/global.php';
+        $dbConfig = $configFolder. '/database.php.';
+        $appConfig = $configFolder.'/app.php';
+        $index = 'index.sae.php';
+        $yaml = 'config.yaml';
+        $favicon = 'favicon.ico';
+
+        $statements = require __DIR__ . '/../statements.php';
+
+        $this->patches = array(
+            'config' => array("Add folder $configFolder.", 'addFolder', $configFolder,),
+            'db' => array("Add file $dbConfig.", 'addFile', $dbConfig, $statements['db'],),
+            'app' => array("Add file $appConfig.", 'addFile', $appConfig, $statements['app'],),
+            'index' => array("Add file $index.", 'addFile', $index, $statements['index'],),
+            'yaml' => array("Add file $yaml.", 'addFile', $yaml, $statements['yaml'], ),
+            'favicon' => array("Add file $favicon.",'addFile', $favicon, '', ),
+            'env' => array('Add closure for $app->detectEnvironment().', 'patchFile', $start, '/\s\$env\s*=\s*\$app->detectEnvironment\((.+?)[\)}]\);/s',
+                $statements['env'], true, 'detectEnvironment', '/\s\$isSae\s*=\s*class_exists\(\'SaeObject\'\);/', ),
+            'wrap' => array('Wrap storage path with SAE wrapper prefix.', 'patchFile', $start, '/\srequire\s+\$framework.\'\/Illuminate\/Foundation\/start.php\';/s',
+                $statements['bind'], false, 'wrap storage', null, ),
+            'log' => array('Add SaeDebugHandler for MonoLog.', 'patchFile', $global, '/\srequire app_path\(\)\.\'\/filters\.php\';/s',
+                $statements['handler'], false, 'SaeDebugHandler', null, ),
+        );
+
+        parent::__construct();
 	}
 
 	/**
@@ -45,29 +67,13 @@ class SaePatch extends Command {
 	 */
 	public function fire()
     {
-        $statements = require __DIR__ . '/../statements.php';
-
-        $patches = array(
-            array('addFolder', SaePatch::CONFIG_FOLDER),
-            array('addFile', SaePatch::CONFIG_FOLDER . '/database.php', $statements['db']),
-            array('addFile', SaePatch::CONFIG_FOLDER . '/app.php', $statements['app']),
-            array('addFile', 'config.yaml', $statements['yaml']),
-            array('addFile', 'favicon.ico', ''),
-            array('patchFile', SaePatch::BOOTSTRAP_START, '/\s\$env\s*=\s*\$app->detectEnvironment\((.+?)[\)}]\);/s',
-                $statements['env'], true, 'detectEnvironment', '/\s\$isSae\s*=\s*class_exists\(\'SaeObject\'\);/'),
-            array('patchFile', SaePatch::BOOTSTRAP_START, '/\srequire\s+\$framework.\'\/Illuminate\/Foundation\/start.php\';/s',
-                $statements['bind'], false, 'wrap storage', null),
-            array('patchFile', SaePatch::START_GLOBAL, '/\srequire app_path\(\)\.\'\/filters\.php\';/s',
-                $statements['handler'], false, 'SaeDebugHandler', null),
-        );
-
-        if ($this->patch($patches)) {
+        if ($this->patch($this->patches)) {
             $this->info(' - THE END.');
         } else {
             $this->info('');
             $this->info('Seems you have already patched SAE before,');
-            $this->info('You can use "php artisan sae -o" to overwrite all ignored items.');
-            $this->info('See help message using "php artisan sae -h".');
+            $this->info('You can use "php artisan sae -o item-name" to overwrite ignored item(s), ');
+            $this->info('See detailed help message using "php artisan sae -h".');
         }
     }
 
@@ -75,11 +81,20 @@ class SaePatch extends Command {
     {
         $nonPatched = true;
 
-        foreach ($patches as $patch) {
-            $method = $patch[0];
-            $params = array_slice($patch, 1);
-            $patched = call_user_func_array(array($this, $method), $params);
-            $nonPatched = $nonPatched && $patched;
+        $overwrite = $this->option('overwrite');
+        $verbose = $this->option('verbose');
+        foreach ($patches as $key => $patch) {
+            if(empty($overwrite) or strcasecmp($overwrite, 'all')==0 or strcasecmp($overwrite, $key)==0) {
+                $method = $patch[1];
+                $params = array_slice($patch, 2);
+                $params = array_merge($params, array(
+                    $key,
+                    !empty($overwrite) and (strcasecmp($overwrite, 'all') or strcasecmp($overwrite, $key)),
+                    !empty($verbose),
+                ));
+                $patched = call_user_func_array(array($this, $method), $params);
+                $nonPatched = $nonPatched && $patched;
+            }
         }
         return $nonPatched;
     }
@@ -87,17 +102,16 @@ class SaePatch extends Command {
     private function addFile()
     {
         //Arguments
-        list($path, $content) = func_get_args();
-        $overwrite = $this->option('overwrite');
+        list($path, $content, $key, $overwrite, $verbose) = func_get_args();
         //$undo = $this->option('undo');
 
         if(!$overwrite and file_exists($path)) {
-            $this->info(" - Ignored. File '$path' already exists.");
+            $this->info(" - [$key] \tIgnored. File '$path' already exists.");
             return false;
         }
         $this->backupFile($path);
         if(file_put_contents($path, $content) !== false) {
-            $this->info(" - Successfully added file '$path'.");
+            $this->info("   [$key] \tSuccessfully added file '$path'.");
         } else {
             throw new \Exception(" Failed to add file '$path'.");
         }
@@ -107,35 +121,34 @@ class SaePatch extends Command {
     private function addFolder()
     {
         //Arguments
-        list($folder) = func_get_args();
-        $overwrite = $this->option('overwrite');
+        list($folder, $key, $overwrite, $verbose) = func_get_args();
         //$undo = $this->option('undo');
 
         if(!$overwrite and file_exists($folder)) {
-            $this->info(" - Ignored. Folder '$folder' already exists.");
-            return false;
+            $this->info(" - [$key] \tIgnored. Folder '$folder' already exists.");
         }
 
         if (!file_exists($folder)) {
             if (mkdir($folder)) {
-                $this->info(" - Successfully created folder '$folder'");
+                $this->info("   [$key] \tSuccessfully created folder '$folder'");
+                return true;
             } else {
                 throw new \Exception(" Failed to create folder '$folder'");
             }
         }
+        if($overwrite) $this->info(" - [$key] \tSuccessfully created folder '$folder'");
         return true;
     }
 
     private function patchFile()
     {
         //Arguments
-        list($path, $targetPattern, $patch, $commentTarget, $description, $kernalPattern) = func_get_args();
-        $overwrite = $this->option('overwrite');
+        list($path, $targetPattern, $patch, $commentTarget, $description, $kernalPattern, $key, $overwrite, $verbose) = func_get_args();
         //$undo = $this->option('undo');
 
         $content = file_get_contents($path);
         if(!$overwrite and (empty($kernalPattern) ? strpos($content, $patch) : preg_match($kernalPattern, $content))) {
-            $this->info(" - Ignored. Patch '$description' for sae at file '$path' already exists.");
+            $this->info(" - [$key] \tIgnored. Patch '$description' for sae ".($verbose?"at file '$path' ":'')."already exists.");
             return false;
         }
         $this->backupFile($path);
@@ -144,7 +157,7 @@ class SaePatch extends Command {
                 $targetPattern, $content, $patch, $commentTarget)
             ) !== false) {
             file_put_contents($path, $output);
-            $this->info(" - Successfully patched '$description' for sae at file '$path'.");
+            $this->info("   [$key] \tSuccessfully patched '$description' for sae".($verbose?" at file '$path'.":'.'));
         } else {
             throw new \Exception(" Failed to patch '$description' for sae at file '$path' (Can not match target pattern).");
         }
@@ -167,7 +180,7 @@ class SaePatch extends Command {
             $n++;
         }
         if(copy($path, $backupPath)) {
-            $this->info(" - Successfully backed up '$path'");
+            $this->info(" - \t\tSuccessfully backed up '$path'");
         } else {
             throw new \Exception(" Failed to back up '$path'");
         }
@@ -212,8 +225,19 @@ class SaePatch extends Command {
 	 */
 	protected function getOptions()
 	{
-		return array(
-            array('--overwrite', '-o', InputOption::VALUE_NONE, 'Patch laravel4 even it has been patched before.'),
+        $overwrite = <<<OVERWRITE
+Patch laravel4 even it has been patched before.\n
+Option value:\n
+OVERWRITE;
+        foreach ($this->patches as $key => $params) {
+            $overwrite .= $key."\t".$params[0]."\n";
+        }
+        $overwrite .= "all \toverwrite all above.\n";
+        $overwrite .= "\nExample1: php artisan sae -o db";
+        $overwrite .= "\nExample2: php artisan sae -o all\n";
+
+        return array(
+            array('--overwrite', '-o', InputOption::VALUE_OPTIONAL, $overwrite),
             //array('--undo', '-u', InputOption::VALUE_NONE, 'Undo all patch done by SaePatch.'),
 		);
 	}
