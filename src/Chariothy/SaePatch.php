@@ -147,6 +147,12 @@ class SaePatch extends Command {
         list($path, $targetPattern, $patch, $commentTarget, $description, $kernalPattern, $key, $overwrite, $verbose) = func_get_args();
         //$undo = $this->option('undo');
 
+        if(!file_exists($path)) {
+            file_put_contents($path, $patch);
+            $this->info("   [$key] \tSuccessfully added '$description' for sae".($verbose?" at file '$path'.":'.'));
+            return true;
+        }
+
         $content = file_get_contents($path);
         if(!$overwrite and (empty($kernalPattern) ? strpos($content, $patch) : preg_match($kernalPattern, $content))) {
             $this->info(" - [$key] \tIgnored. Patch '$description' for sae ".($verbose?"at file '$path' ":'')."already exists.");
@@ -154,10 +160,6 @@ class SaePatch extends Command {
         }
         $this->backupFile($path);
 
-        if(!file_exists($patch)) {
-            file_put_contents($path, $patch);
-            $this->info("   [$key] \tSuccessfully added '$description' for sae".($verbose?" at file '$path'.":'.'));
-        }
         if(($output=$this->insertString(
                 $targetPattern, $content, $patch, $commentTarget)
             ) !== false) {
