@@ -9,7 +9,7 @@ laravel4-sae
 
 1. 在SAE的“应用管理”中新建一个没有代码的应用，比如叫project-name（这里面只是便于举例，实际上SAE不允许用字符'-'）；
 2. 用svn将其同步到本地，你会看到本地多出个目录project-name；
-3. 打开在命令行窗口，定位到project-name，创建一个版本的laravel应用，输入
+3. 打开在命令行窗口，定位到project-name，创建一个laravel应用，输入
 
 ```
 composer create-project laravel/laravel=4.1.* project-version --prefer-dist
@@ -25,7 +25,7 @@ composer require chariothy/laravel4-sae dev-master
 ```
 
 它会更新网站根项目下的composer.json，并将laravel4-sae安装到vendor目录下。
-最后用svn将整个应用上传到SAE，应用下就会多出一个版本号，**在SAE中开启KVDB服务**。
+最后用svn将整个应用上传到SAE，“应用管理”的“代码管理”下就会多出一个版本号，**在“服务管理”的“KVDB”中开启KVDB服务**。
 
 ## 如何使用
 
