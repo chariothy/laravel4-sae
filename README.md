@@ -104,4 +104,11 @@ php artisan sae -h
 ```
 可以看到所有选项
 
+## 特别注意
+在SAE环境下，如需切换memcached、storage、kvdb，则config.cache.drive和config.session.drive均保持file不变，只需在config.sae.app（在config/sae/app.php中）中改变wrapper属性即可。
+
+事实上，SAE的storage至少目前不支持文件append，而memcache又太贵，所以就用默认的kvdb来保存字符挺好的，storage还是适合放些静态图片等等，memcache等着访问量上去了再换也不迟。
+
+另外，可别忘了在SAE的控制面板中打开kvdb等相应的服务哦~
+
 Have fun!
