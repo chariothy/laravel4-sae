@@ -27,7 +27,8 @@ HANDLER
 name: laravel4-sae
 version: 1
 handle:
-- rewrite:  if ( !is_dir() && !is_file() && path ~ "^(.*)$" ) goto "public/index.php/$1"
+- directoryindex: index.sae.php
+- rewrite:  if ( !is_dir() && !is_file() && path ~ "^(.*)$" ) goto "index.sae.php/$1"
 YAML
     , 'db' => <<<'DB_CONFIG'
 <?php
@@ -130,5 +131,20 @@ if(class_exists('SaeObject')) {
 |--------------------------------------------------------------------------
 */
 BIND
-    ,
+    , 'index' => <<<'INDEX'
+
+/*
+|--------------------------------------------------------------------------
+| SaePatch - adapt for SAE rewrite rule
+|--------------------------------------------------------------------------
+*/
+<?php
+ini_set('display_errors',0);
+require __DIR__.'/public/index.php';
+/*
+|--------------------------------------------------------------------------
+| End of SaePatch
+|--------------------------------------------------------------------------
+*/
+INDEX
 );
