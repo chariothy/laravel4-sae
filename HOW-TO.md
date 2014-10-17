@@ -1,1 +1,6 @@
-# Let's run Laravel 4 on SAE
+# 让Laravel在SAE上跑起来
+
+
+```
+php artisan sae -h
+```
