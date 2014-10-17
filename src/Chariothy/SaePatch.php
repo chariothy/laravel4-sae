@@ -22,6 +22,11 @@ class SaePatch extends Command {
 
     const CONFIG_FOLDER = 'app/config/sae';
     const PHP_EXT = '.php';
+    const BOOTSTRAP_START = 'bootstrap/start.php';
+    const START_GLOBAL = 'app/start/global.php';
+
+    const OVERWRITE = 0;
+    const IGNORE = 1;
 
 	/**
 	 * Create a new command instance.
@@ -40,241 +45,140 @@ class SaePatch extends Command {
 	 */
 	public function fire()
     {
-        if(!$this->option('force')) {
-            list($nonPatched, $output) = $this->checkSaePatch();
-            if(!$nonPatched) {
-                $this->error('Seems you have already patched SAE:');
-                $n = 1;
-                foreach ($output as $description) {
-                    $this->info("\t$n. ".$description);
-                    $n++;
-                }
-                $this->error('You must use "php artisan sae -f" to enforce it.');
-                $this->error('See help message using "php artisan sae -h"');
-                return;
-            }
+        $statements = require __DIR__ . '/../statements.php';
+
+        $patches = array(
+            array('addFolder', SaePatch::CONFIG_FOLDER),
+            array('addFile', SaePatch::CONFIG_FOLDER . '/database.php', $statements['db']),
+            array('addFile', SaePatch::CONFIG_FOLDER . '/app.php', $statements['app']),
+            array('addFile', 'config.yaml', $statements['yaml']),
+            array('addFile', 'favicon.ico', ''),
+            array('patchFile', SaePatch::BOOTSTRAP_START, '/\s\$env\s*=\s*\$app->detectEnvironment\((.+?)[\)}]\);/s',
+                $statements['env'], true, 'detectEnvironment', '/\s\$isSae\s*=\s*class_exists\(\'SaeObject\'\);/'),
+            array('patchFile', SaePatch::BOOTSTRAP_START, '/\srequire\s+\$framework.\'\/Illuminate\/Foundation\/start.php\';/s',
+                $statements['bind'], false, 'wrap storage', null),
+            array('patchFile', SaePatch::START_GLOBAL, '/\srequire app_path\(\)\.\'\/filters\.php\';/s',
+                $statements['handler'], false, 'SaeDebugHandler', null),
+        );
+
+        if ($this->patch($patches)) {
+            $this->info(' - THE END.');
+        } else {
+            $this->info('');
+            $this->info('Seems you have already patched SAE before,');
+            $this->info('You can use "php artisan sae -o" to overwrite all ignored items.');
+            $this->info('See help message using "php artisan sae -h".');
         }
-        $this->addSaeEnvAndBindStoragePath();
-        $this->addSaeConfig();
-        $this->addSaeRule();
-        $this->addFavIcon();
-        $this->info(' THE END.');
     }
 
-    private function checkSaePatch()
+    private function patch($patches)
     {
-        $output = array();
         $nonPatched = true;
 
-        list($exists, $description) = $this->checkFileExists(SaePatch::CONFIG_FOLDER);
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkFileExists(SaePatch::CONFIG_FOLDER.'/database.php');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkFileExists(SaePatch::CONFIG_FOLDER.'/app.php');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkFileExists('config.yaml');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkFileExists('favicon.ico');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkStatementExists('bootstrap/start.php', '/\$isSae\s*=\s*class_exists\(\'SaeObject\'\);/', 'Add closure for detectEnvironment().');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        list($exists, $description) = $this->checkStatementExists('bootstrap/start.php', '/Config::get\(\'app\.wrapper\'\)/', 'Wrap storage path with SAE wrapper.');
-        $nonPatched = $nonPatched && !$exists;
-        $output[] = $description;
-
-        return array($nonPatched, $output);
+        foreach ($patches as $patch) {
+            $method = $patch[0];
+            $params = array_slice($patch, 1);
+            $patched = call_user_func_array(array($this, $method), $params);
+            $nonPatched = $nonPatched && $patched;
+        }
+        return $nonPatched;
     }
 
-    private function checkStatementExists($path, $pattern, $short)
+    private function addFile()
     {
-        $exists = false;
+        //Arguments
+        list($path, $content) = func_get_args();
+        $overwrite = $this->option('overwrite');
+        //$undo = $this->option('undo');
 
-        $description = $short;
+        if(!$overwrite and file_exists($path)) {
+            $this->info(" - Ignored. File '$path' already exists.");
+            return false;
+        }
+        $this->backupFile($path);
+        if(file_put_contents($path, $content) !== false) {
+            $this->info(" - Successfully added file '$path'.");
+        } else {
+            throw new \Exception(" Failed to add file '$path'.");
+        }
+        return true;
+    }
+
+    private function addFolder()
+    {
+        //Arguments
+        list($folder) = func_get_args();
+        $overwrite = $this->option('overwrite');
+        //$undo = $this->option('undo');
+
+        if(!$overwrite and file_exists($folder)) {
+            $this->info(" - Ignored. Folder '$folder' already exists.");
+            return false;
+        }
+
+        if (!file_exists($folder)) {
+            if (mkdir($folder)) {
+                $this->info(" - Successfully created folder '$folder'");
+            } else {
+                throw new \Exception(" Failed to create folder '$folder'");
+            }
+        }
+        return true;
+    }
+
+    private function patchFile()
+    {
+        //Arguments
+        list($path, $targetPattern, $patch, $commentTarget, $description, $kernalPattern) = func_get_args();
+        $overwrite = $this->option('overwrite');
+        //$undo = $this->option('undo');
+
         $content = file_get_contents($path);
-        if(preg_match($pattern, $content)) {
-            $exists = true;
-            $description .= '(Done)';
-        } else {
-            $description .= '(UnDone)';
+        if(!$overwrite and (empty($kernalPattern) ? strpos($content, $patch) : preg_match($kernalPattern, $content))) {
+            $this->info(" - Ignored. Patch '$description' for sae at file '$path' already exists.");
+            return false;
         }
-        return array($exists, $description);
-    }
+        $this->backupFile($path);
 
-    private function checkFileExists($path)
-    {
-        $exists = false;
-
-        $description = 'Add "'.$path.'".';
-        if(file_exists($path)) {
-            $exists = true;
-            $description .= '(Done)';
+        if(($output=$this->insertString(
+                $targetPattern, $content, $patch, $commentTarget)
+            ) !== false) {
+            file_put_contents($path, $output);
+            $this->info(" - Successfully patched '$description' for sae at file '$path'.");
         } else {
-            $description .= '(UnDone)';
+            throw new \Exception(" Failed to patch '$description' for sae at file '$path' (Can not match target pattern).");
         }
-        return array($exists, $description);
-    }
-
-    private function addSaeRule()
-    {
-        $this->info(str_pad(' --------------------- Add SAE Rule ', 60, '-'));
-        $yaml = <<<'YAML'
-name: laravel4-sae
-version: 1
-handle:
-- rewrite:  if ( !is_dir() && !is_file() && path ~ "^(.*)$" ) goto "public/index.php/$1"
-YAML;
-        $yamlPath = 'config.yaml';
-        if(file_exists($yamlPath)) {
-            $this->backupFile($yamlPath, '.yaml');
-        }
-        if(file_put_contents($yamlPath, $yaml)) {
-            $this->info(' Successfully added rule for SAE (in config.yaml).');
-        } else {
-            $this->error(' Failed to added rule for SAE.');
-        }
-    }
-
-    private  function addFavIcon()
-    {
-        $this->info(str_pad(' --------------------- Add SAE Favicon ', 60, '-'));
-        $iconPath = 'favicon.ico';
-        if(file_exists($iconPath)) {
-            $this->backupFile($iconPath, '.ico');
-        }
-        if(file_put_contents($iconPath, '')!==false) {
-            $this->info(' Successfully added favicon.ico for SAE.');
-        } else {
-            $this->error(' Failed to added favicon.ico for SAE.');
-        }
+        return true;
     }
 
     private function get(&$var, $default=null) {
         return isset($var) ? $var : $default;
     }
 
-    private function addSaeConfig()
-    {
-        $this->info(str_pad(' --------------------- Add SAE Configuration ', 60, '-'));
-        $saeDbConfigPath = SaePatch::CONFIG_FOLDER.'/database.php';
-        $saeAppConfigPath = SaePatch::CONFIG_FOLDER.'/app.php';
-
-        if (!file_exists(SaePatch::CONFIG_FOLDER)) {
-            if (mkdir(SaePatch::CONFIG_FOLDER)) {
-                $this->info(' Successfully created folder "'.SaePatch::CONFIG_FOLDER.'"');
-            } else {
-                $this->error(' Failed to created folder "'.SaePatch::CONFIG_FOLDER.'"');
-            }
-        }
-        $databaseConfig = <<<'DB_CONFIG'
-<?php
-
-    /*
-	|--------------------------------------------------------------------------
-	| Database Connections for SAE
-	|--------------------------------------------------------------------------
-	|
-	| Here are each of the database connections setup for your application.
-	| Of course, examples of configuring each database platform that is
-	| supported by Laravel is shown below to make development simple.
-	|
-	|
-	| All database work in Laravel is done through the PHP PDO facilities
-	| so make sure you have the driver for your particular database of
-	| choice installed on your machine before you begin development.
-	|
-	*/
-return array(
-    'connections' => array(
-
-		'mysql' => array(
-			'driver'    => 'mysql',
-            'host'      => SAE_MYSQL_HOST_M,
-            'port'      => SAE_MYSQL_PORT,
-            'database'  => SAE_MYSQL_DB,
-            'username'  => SAE_MYSQL_USER,
-            'password'  => SAE_MYSQL_PASS,
-            'charset'   => 'utf8',
-            'collation' => 'utf8_general_ci',
-            'prefix'    => '',
-		),
-	),
-);
-DB_CONFIG;
-        if(file_exists($saeDbConfigPath)) {
-            $this->backupFile($saeDbConfigPath);
-        }
-        if(file_put_contents($saeDbConfigPath, $databaseConfig)) {
-            $this->info(' Successfully added database configuration for SAE.');
-        } else {
-            $this->error(' Failed to added database configuration for SAE.');
-        }
-
-        $appConfig = <<<'APP_CONFIG'
-<?php
-
-    /*
-	|--------------------------------------------------------------------------
-	| SAE Wrapper Prefix
-	|--------------------------------------------------------------------------
-	|
-	| This prefix stand for SAE wrapper. Using this prefix, we can access storage,
-	| memcached, kvdb of SAE by simply keeping 'drive' of cache, session 'file'.
-	|
-	| Supported:
-    |	        "saekv://"          (recommended for string),
-    |           "saemc://"          (fastest but most expensive),
-    |           "saestor://domain"  (suitable for resource)
-	|
-	*/
-
-return array(
-    'wrapper' => 'saekv://',
-);
-APP_CONFIG;
-
-        if(file_exists($saeAppConfigPath)) {
-            $this->backupFile($saeAppConfigPath);
-        }
-        if(file_put_contents($saeAppConfigPath, $appConfig)) {
-            $this->info(' Successfully added wrapper configuration for SAE.');
-        } else {
-            $this->error(' Failed to added wrapper configuration for SAE.');
-        }
-    }
-
-    private function backupFile($path, $ext=SaePatch::PHP_EXT)
+    private function backupFile($path)
     {
         if (!file_exists($path)) return false;
+        $ext = pathinfo($path)['extension'];
         $basePath = dirname($path)=='.' ? basename($path, $ext) : dirname($path). '/' . basename($path, $ext);
         $n = 1;
-        $backupPath = $basePath . '.bak' . $ext;
+        $backupPath = $basePath . 'bak.' . $ext;
         while (file_exists($backupPath)) {
-            $backupPath = $basePath . '.bak' . $n . $ext;
+            $backupPath = $basePath . 'bak' . $n . '.' . $ext;
             $n++;
         }
         if(copy($path, $backupPath)) {
-            $this->info(' Successfully backed up "' . $path);// . '" -> "' . $backupPath . '"');
+            $this->info(" - Successfully backed up '$path'");
         } else {
-            $this->info(' Failed to back up "' . $path . '"');
+            throw new \Exception(" Failed to back up '$path'");
         }
         return $backupPath;
     }
 
     private function insertString($pattern, $content, $insert, $commentMatched=true)
     {
-        if(preg_match($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
+        if(empty($pattern)) {
+            return $content . "\n\n" . $insert;
+        } elseif(preg_match($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
             $matched = $matches[0][0];
             $matchedOffset = $matches[0][1];
             $comment = $commentMatched===true ? str_replace("\n", "\n//", $matched) : $matched;
@@ -287,82 +191,6 @@ APP_CONFIG;
             return $output;
         }
         return false;
-    }
-
-    private function addSaeEnvAndBindStoragePath()
-    {
-        $startPath =  'bootstrap/start.php';
-        $this->info(str_pad(' --------------------- Patch "'.$startPath.'" ', 60, '-'));
-
-        $this->backupFile($startPath);
-        $content = file_get_contents($startPath);
-        $newEnv = <<<'NEW_ENV'
-/*
-|--------------------------------------------------------------------------
-| SaePatch - add closure for detectEnvironment()
-|--------------------------------------------------------------------------
-*/
-$env = $app->detectEnvironment(function(){
-
-  // Set the booleans
-  $isLocal      = gethostname()==gethostbyaddr('127.0.0.1');
-  $isSae        = class_exists('SaeObject');
-  $isTest       = strpos(__DIR__, 'var/www/your-domain.com/test/');
-
-  // Set the environments
-  $environment = "production";
-  if ($isLocal)       $environment = "local";
-  if ($isSae)         $environment = "sae";
-  if ($isTest)        $environment = "test";
-
-  // Return the appropriate environment
-  return $environment;
-});
-/*
-|--------------------------------------------------------------------------
-| End of SaePatch
-|--------------------------------------------------------------------------
-*/
-NEW_ENV;
-        if(($output=$this->insertString(
-                '/\s\$env = \$app->detectEnvironment\(array\((.+?)\)\);/s', $content, $newEnv)
-            ) !== false) {
-            $content = $output;
-            $this->info(' Successfully patched detectEnvironment() for sae.');
-        } elseif(($output=$this->insertString(
-            '/\s\$env = \$app->detectEnvironment\(function\(\){(.+?)}\);/s', $content, $newEnv)
-            ) !== false) {
-            $content = $output;
-            $this->info(' Successfully patched detectEnvironment() for sae.');
-        } else {
-            $this->error(' Failed to patched detectEnvironment() for sae.');
-        }
-
-        $bindStorage = <<<'BIND'
-
-/*
-|--------------------------------------------------------------------------
-| SaePatch - wrap storage path with SAE wrapper
-|--------------------------------------------------------------------------
-*/
-if(class_exists('SaeObject')) {
-    $app->instance("path.storage", Config::get('app.wrapper').$app['path.storage']);
-}
-/*
-|--------------------------------------------------------------------------
-| End of SaePatch
-|--------------------------------------------------------------------------
-*/
-BIND;
-
-        if(($output=$this->insertString(
-                '/require \$framework.\'\/Illuminate\/Foundation\/start.php\';/s', $content, $bindStorage, false)
-            ) !== false) {
-            file_put_contents($startPath, $output);
-            $this->info(' Successfully bound storage path for sae.');
-        } else {
-            $this->error(' Failed to bind storage path for sae.');
-        }
     }
 
 	/**
@@ -385,7 +213,8 @@ BIND;
 	protected function getOptions()
 	{
 		return array(
-            array('--force', '-f', InputOption::VALUE_NONE, 'Patch laravel4 even it has been patched before.'),
+            array('--overwrite', '-o', InputOption::VALUE_NONE, 'Patch laravel4 even it has been patched before.'),
+            //array('--undo', '-u', InputOption::VALUE_NONE, 'Undo all patch done by SaePatch.'),
 		);
 	}
 
