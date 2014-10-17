@@ -7,26 +7,25 @@ laravel4-sae
 ####在SAE安装Laravel
 在SAE安装Laravel与本地环境安装稍有区别：
 
-1. 在SAE的“应用管理”中新建一个没有代码的应用，比如叫laravel；
-
-2. 在“laravel”的“代码管理”中新建一个版本，比方为1；
-
-3. 用svn将其同步到本地，你会看到目录结构为laravel/1/，注意**这个1才是你的网站根目录**。以下不再说明
-
-在命令行窗口中定位到网站根目录，输入：
+1. 在SAE的“应用管理”中新建一个没有代码的应用，比如叫project-name（这里面只是便于举例，实际上SAE不允许用字符'-'）；
+2. 用svn将其同步到本地，你会看到本地多出个目录project-name；
+3. 打开在命令行窗口，定位到project-name，创建一个版本的laravel应用，输入
 
 ```
-composer create-project laravel/laravel=4.1.* your-project-name --prefer-dist
+composer create-project laravel/laravel=4.1.* project-version --prefer-dist
 ```
-**SAE的php版本为5.3，因此最高只能支持到Laravel4.1。（Laravel4.2用到了php5.4的trait特性）**
+**！注意**上面命令中的project-version，这应该是个数字，是你还没用过的SAE应用的版本号，对新应用来说从1开始。下文中指的网站根目录是指project-name/project-version，切记。
 
-然后用composer加入laravel4-sae。
+**SAE的php版本为5.3，因此最高只能支持到Laravel4.1.x。（Laravel4.2用到了php5.4的trait特性）**
+
+漫长的等待后安装成功，然后cmd窗口中定位到project-name/project-version，用composer加入laravel4-sae，输入：
 
 ```
 composer require chariothy/laravel4-sae dev-master
 ```
 
 它会更新网站根项目下的composer.json，并将laravel4-sae安装到vendor目录下。
+最后用svn将整个应用上传到SAE，应用下就会多出一个版本号，**在SAE中开启KVDB服务**。
 
 ## 如何使用
 
@@ -60,7 +59,8 @@ php artisan sae
   [log]        Successfully patched 'SaeDebugHandler' for sae.
 - THE END.
 ```
-这就是全部。现在你可以用svn上传到SAE，打开首页将看到熟悉的“You have arrived.”
+这就是全部。现在你可以用svn上传到SAE（**不要忘记先在SAE中开启KVDB服务！**），
+打开首页将看到熟悉的“You have arrived.”
 
 ## SaePatch都做了啥？
 以下对输出的结果做解释：
