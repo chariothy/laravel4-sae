@@ -51,7 +51,7 @@ class SaePatch extends Command {
             'favicon' => array("Add file $favicon.",'addFile', $favicon, '', ),
             'env' => array('Add closure for $app->detectEnvironment().', 'patchFile', $start, '/\s\$env\s*=\s*\$app->detectEnvironment\((.+?)[\)}]\);/s',
                 $statements['env'], true, 'detectEnvironment', '/\s\$isSae\s*=\s*class_exists\(\'SaeObject\'\);/', ),
-            'wrap' => array('Wrap storage path with SAE wrapper prefix.', 'patchFile', $start, '/\srequire\s+\$framework.\'\/Illuminate\/Foundation\/start.php\';/s',
+            'wrap' => array('Wrap storage path with SAE wrapper prefix.', 'patchFile', $start, '/\s\$app->bindInstallPaths\(require __DIR__\.\'\/paths\.php\'\);/s',
                 $statements['bind'], false, 'wrap storage', null, ),
             'log' => array('Add SaeDebugHandler for MonoLog.', 'patchFile', $global, '/\srequire app_path\(\)\.\'\/filters\.php\';/s',
                 $statements['handler'], false, 'SaeDebugHandler', null, ),

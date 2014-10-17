@@ -14,7 +14,7 @@ return array(
 | SaePatch - add SaeDebugHandler for MonoLog
 |--------------------------------------------------------------------------
 */
-if(class_exists('SaeObject')) {
+if(App::environment('sae')) {
     Log::getMonoLog()->pushHandler($handler = new Chariothy\SaeDebugHandler());
 }
 /*
@@ -121,8 +121,9 @@ NEW_ENV
 | SaePatch - wrap storage path with SAE wrapper
 |--------------------------------------------------------------------------
 */
-if(class_exists('SaeObject')) {
-    $app->instance("path.storage", Config::get('app.wrapper').$app['path.storage']);
+if($app->environment('sae')) {
+    $config = require $app['path'].'/config/sae/app.php';
+    $app->instance("path.storage", $config['wrapper'].$app['path.storage']);
 }
 /*
 |--------------------------------------------------------------------------
