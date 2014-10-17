@@ -24,8 +24,6 @@ if(App::environment('sae')) {
 */
 HANDLER
     , 'yaml' => <<<'YAML'
-name: laravel4-sae
-version: 1
 handle:
 - directoryindex: index.sae.php
 - rewrite:  if ( !is_dir() && !is_file() && path ~ "^(.*)$" ) goto "index.sae.php/$1"
