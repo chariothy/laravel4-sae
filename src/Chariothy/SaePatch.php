@@ -154,6 +154,10 @@ class SaePatch extends Command {
         }
         $this->backupFile($path);
 
+        if(!file_exists($patch)) {
+            file_put_contents($path, $patch);
+            $this->info("   [$key] \tSuccessfully added '$description' for sae".($verbose?" at file '$path'.":'.'));
+        }
         if(($output=$this->insertString(
                 $targetPattern, $content, $patch, $commentTarget)
             ) !== false) {
