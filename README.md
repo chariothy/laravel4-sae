@@ -112,3 +112,5 @@ php artisan sae -h
 另外，可别忘了在SAE的控制面板中打开kvdb等相应的服务哦~
 
 Have fun!
+
+**PS: 为了方便那些composer速度太慢的朋友，我用laravel4-sae打包了一个laravel4.1.27，直接解压出来就可以上传到SAE运行，[这里下载](http://download.csdn.net/detail/thy38/8053521 "")。**
