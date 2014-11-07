@@ -34,7 +34,7 @@ class SaePatch extends Command {
         $configFolder = 'app/config/sae';
         $start = 'bootstrap/start.php';
         $global = 'app/start/global.php';
-        $dbConfig = $configFolder. '/database.php.';
+        $dbConfig = $configFolder. '/database.php';
         $appConfig = $configFolder.'/app.php';
         $index = 'index.sae.php';
         $yaml = 'config.yaml';
