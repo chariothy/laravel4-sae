@@ -1,24 +1,24 @@
-laravel4-sae
+laravel4-sae v1.1.0
 ============
-只需手动增加一行代码即可让Laravel4（~4.2）运行在SAE，而且在本地和在SAE开发无需命令切换，自动判断环境并切换配置。
+只需手动增加两行代码即可让Laravel4（ < 4.2）运行在SAE，而且在本地和在SAE开发无需命令切换，自动判断环境并切换配置。
 
 ## 安装
 
 ####在SAE安装Laravel
 在SAE安装Laravel与本地环境安装稍有区别：
 
-1. 在SAE的“应用管理”中新建一个没有代码的应用，比如叫project-name（这里面只是便于举例，实际上SAE不允许用字符'-'）；
-2. 用svn将其同步到本地，你会看到本地多出个目录project-name；
-3. 打开在命令行窗口，定位到project-name，创建一个laravel应用，输入
+1. 在SAE的“应用管理”中新建一个没有代码的应用，比如叫projectname；
+2. 用svn将其同步到本地，你会看到本地多出个目录projectname；
+3. 打开在命令行窗口，定位到projectname，创建一个laravel应用，输入
 
 ```
 composer create-project laravel/laravel=4.1.* project-version --prefer-dist
 ```
-**！注意**上面命令中的project-version，这应该是个数字，是你还没用过的SAE应用的版本号，对新应用来说从1开始。下文中指的网站根目录是指project-name/project-version，切记。
+**！注意**上面命令中的project-version，这应该是个数字，是你还没用过的SAE应用的版本号，对新应用来说从1开始。下文中指的网站根目录是指projectname/project-version，切记。
 
 **SAE的php版本为5.3，因此最高只能支持到Laravel4.1.x。（Laravel4.2用到了php5.4的trait特性）**
 
-漫长的等待后安装成功，然后cmd窗口中定位到project-name/project-version，用composer加入laravel4-sae，输入：
+漫长的等待后安装成功，然后cmd窗口中定位到projectname/project-version，用composer加入laravel4-sae，输入：
 
 ```
 composer require chariothy/laravel4-sae dev-master
@@ -29,10 +29,23 @@ composer require chariothy/laravel4-sae dev-master
 
 ## 如何使用
 
-好了，要增加的**唯一**一行代码来了：
-打开网站项目根目录下app/start/artisan.php，在结尾处添加
+好了，要增加的两行代码来了：
+打开网站项目根目录下app/config/app.php，找到'providers'设置，在结尾处添加'Chariothy\SaeServiceProvider'：
 ```
-Artisan::add(new Chariothy\SaePatch);
+'providers' => array(
+
+        ......
+        'Chariothy\SaeServiceProvider',
+	),
+```
+找到'aliases'设置，在结尾处添加'SAE' => 'Chariothy\SaeFacade'：
+```
+'aliases' => array(
+
+		......
+
+        'SAE' => 'Chariothy\SaeFacade',
+	),
 ```
 保存之后，打开cmd窗口，定位到你的网站项目根目录下，输入
 ```
@@ -61,6 +74,30 @@ php artisan sae
 ```
 这就是全部。现在你可以用svn上传到SAE（**不要忘记先在SAE中开启KVDB服务！**），
 打开首页将看到熟悉的“You have arrived.”
+
+## 如何添加静态链接
+在laravel中是用{{HTML::stript('js/code.js')}}、{{HTML::style('css/style.js')}}、{{HTML::image('img/image.png')}}这三句来添加。
+但前提是在本地部署，同时将root/public设置为根目录。而在SAE上，一般会将图片等资源放在storage中。
+这里laravel4-sae在app/config/sae/app.php下添加了几个设置项：
+```
+'sae' => array(
+        //这是用来设置你的缓存等存放在SAE的KVDB中
+        'wrapper' => 'saekv://',
+
+
+        //这里是开启storage时设置的domain，具体值自己设置
+        'domain' => 'example',
+        
+        //这里指定了三种资源的存放位置，值有'code'和'storage'
+        //'code'则放在root/public相应的目录下
+        //'storage'会放在SAE的storage相应的目录下
+        'style'     => 'code',
+        'script'    => 'code',
+        'image'     => 'storage',
+    ),
+```
+这样你在代码中只要用{{SAE::stript('js/code.js')}}、{{SAE::style('css/style.js')}}、{{SAE::image('img/image.png')}}这三句即可。
+同时这三句对本地部署同样适用，无需切换。
 
 ## SaePatch都做了啥？
 以下对输出的结果做解释：
@@ -104,13 +141,23 @@ php artisan sae -h
 ```
 可以看到所有选项
 
+## 使用示例
+见HOW-TO.MD
+
 ## 特别注意
 在SAE环境下，如需切换memcached、storage、kvdb，则config.cache.drive和config.session.drive均保持file不变，只需在config.sae.app（在config/sae/app.php中）中改变wrapper属性即可。
 
 事实上，SAE的storage至少目前不支持文件append，而memcache又太贵，所以就用默认的kvdb来保存字符挺好的，storage还是适合放些静态图片等等，memcache等着访问量上去了再换也不迟。
 
-另外，可别忘了在SAE的控制面板中打开kvdb等相应的服务哦~
+另外，**可别忘了在SAE的控制面板中打开kvdb等相应的服务哦~**
 
 Have fun!
 
-**PS: 为了方便那些composer速度太慢的朋友，我用laravel4-sae打包了一个laravel4.1.27，直接解压出来就可以上传到SAE运行，[这里下载](http://download.csdn.net/detail/thy38/8053521 "")。**
+**PS: 为了方便那些composer速度太慢的朋友，我用laravel4-sae打包了一个laravel 4.1.27，直接解压出来就可以上传到SAE运行，[这里下载](http://download.csdn.net/detail/thy38/8053521 "")。**
+
+## 更新日志
+v 1.1.0 
+提供对静态资源在storage的支持，感谢flyboy
+
+v 1.0.0 初始版本
+通过sae命令可以对laravel打上sae补丁

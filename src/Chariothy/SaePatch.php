@@ -20,7 +20,6 @@ class SaePatch extends Command {
 	 */
 	protected $description = 'Non-intrusively patches Laravel4 for SAE.';
 
-    const VERSION = '1.0.0';
     const PHP_EXT = '.php';
     private $patches = array();
 
@@ -34,7 +33,7 @@ class SaePatch extends Command {
         $configFolder = 'app/config/sae';
         $start = 'bootstrap/start.php';
         $global = 'app/start/global.php';
-        $dbConfig = $configFolder. '/database.php';
+        $dbConfig = $configFolder. '/database.php.';
         $appConfig = $configFolder.'/app.php';
         $index = 'index.sae.php';
         $yaml = 'config.yaml';
