@@ -96,7 +96,7 @@ php artisan sae
         'image'     => 'storage',
     ),
 ```
-这样你在代码中只要用{{SAE::stript('js/code.js')}}、{{SAE::style('css/style.js')}}、{{SAE::image('img/image.png')}}这三句即可。
+这样你在代码中只要用{{SAE::script('js/code.js')}}、{{SAE::style('css/style.js')}}、{{SAE::image('img/image.png')}}这三句即可。
 同时这三句对本地部署同样适用，无需切换。
 
 ## SaePatch都做了啥？
